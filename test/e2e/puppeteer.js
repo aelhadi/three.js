@@ -2,6 +2,17 @@
  * @author munrocket / https://github.com/munrocket
  */
 
+try {
+
+	require( 'puppeteer' );
+
+} catch {
+
+	console.log( '\x1b[31mError! You not installed dependencies. Please run `npm i --prefix test`\x1b[37m' );
+	process.exit( 1 );
+
+}
+
 const puppeteer = require( 'puppeteer' );
 const handler = require( 'serve-handler' );
 const http = require( 'http' );
@@ -14,24 +25,6 @@ const port = 1234;
 const pixelThreshold = 0.2; // threshold error in one pixel
 const maxFailedPixels = 0.05; // total failed pixels
 
-const exceptionList = [
-
-	'index',
-	'css3d_youtube', // video tag not deterministic enough
-	'webgl_kinect', // same here
-	'webaudio_visualizer', // audio can't be analyzed without proper audio hook
-	'webgl_loader_texture_pvrtc', // not supported in CI, useless
-	'webgl_materials_envmaps_parallax',
-	'webgl_test_memory2', // gives fatal error in puppeteer
-	'webgl_worker_offscreencanvas', // in a worker, not robust
-	'webgl2_multisampled_renderbuffers'
-
-].concat( ( process.platform === "win32" ) ? [
-
-	'webgl_effects_ascii' // windows fonts not supported
-
-] : [] );
-
 const networkTimeout = 600;
 const networkTax = 2000; // additional timeout for resources size
 const pageSizeMinTax = 1.0; // in mb, when networkTax = 0
@@ -39,6 +32,25 @@ const pageSizeMaxTax = 5.0; // in mb, when networkTax = networkTax
 const renderTimeout = 1200;
 const maxAttemptId = 3; // progresseve attempts
 const progressFunc = n => 1 + n;
+
+const exceptionList = [
+
+	'index',
+	'css3d_youtube', // video tag not deterministic enough
+	'webgl_kinect', // same here
+	'webaudio_visualizer', // audio can't be analyzed without proper audio hook
+	'webgl_loader_texture_pvrtc', // not supported in CI, useless
+	'webgl_materials_envmaps_parallax', // empty for some reason
+	'webgl_raymarching_reflect', // exception for Github Actions
+	'webgl_test_memory2', // gives fatal error in puppeteer
+	'webgl_tiled_forward', // exception for Github Actions
+	'webgl_worker_offscreencanvas', // in a worker, not robust
+
+].concat( ( process.platform === "win32" ) ? [
+
+	'webgl_effects_ascii' // windows fonts not supported
+
+] : [] );
 
 console.green = ( msg ) => console.log( `\x1b[32m${ msg }\x1b[37m` );
 console.red = ( msg ) => console.log( `\x1b[31m${ msg }\x1b[37m` );
@@ -122,8 +134,6 @@ const pup = puppeteer.launch( {
 			file = files[ id ];
 			attemptProgress = progressFunc( attemptId );
 			pageSize = 0;
-			global.gc();
-			global.gc();
 
 			try {
 

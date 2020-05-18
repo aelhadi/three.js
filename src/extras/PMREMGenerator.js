@@ -230,9 +230,9 @@ PMREMGenerator.prototype = {
 			magFilter: NearestFilter,
 			minFilter: NearestFilter,
 			generateMipmaps: false,
-			type: equirectangular ? equirectangular.type : UnsignedByteType,
-			format: equirectangular ? equirectangular.format : RGBEFormat,
-			encoding: equirectangular ? equirectangular.encoding : RGBEEncoding,
+			type: UnsignedByteType,
+			format: RGBEFormat,
+			encoding: _isLDR( equirectangular ) ? equirectangular.encoding : RGBEEncoding,
 			depthBuffer: false,
 			stencilBuffer: false
 		};
@@ -257,8 +257,8 @@ PMREMGenerator.prototype = {
 		var fov = 90;
 		var aspect = 1;
 		var cubeCamera = new PerspectiveCamera( fov, aspect, near, far );
-		var upSign = [ 1, 1, 1, 1, - 1, 1 ];
-		var forwardSign = [ 1, 1, - 1, - 1, - 1, 1 ];
+		var upSign = [ 1, - 1, 1, 1, 1, 1 ];
+		var forwardSign = [ 1, 1, 1, - 1, - 1, - 1 ];
 		var renderer = this._renderer;
 
 		var outputEncoding = renderer.outputEncoding;
@@ -270,7 +270,6 @@ PMREMGenerator.prototype = {
 		renderer.toneMapping = LinearToneMapping;
 		renderer.toneMappingExposure = 1.0;
 		renderer.outputEncoding = LinearEncoding;
-		scene.scale.z *= - 1;
 
 		var background = scene.background;
 		if ( background && background.isColor ) {
@@ -317,7 +316,6 @@ PMREMGenerator.prototype = {
 		renderer.toneMappingExposure = toneMappingExposure;
 		renderer.outputEncoding = outputEncoding;
 		renderer.setClearColor( clearColor, clearAlpha );
-		scene.scale.z *= - 1;
 
 	},
 
@@ -358,7 +356,7 @@ PMREMGenerator.prototype = {
 		}
 
 		uniforms[ 'inputEncoding' ].value = ENCODINGS[ texture.encoding ];
-		uniforms[ 'outputEncoding' ].value = ENCODINGS[ texture.encoding ];
+		uniforms[ 'outputEncoding' ].value = ENCODINGS[ cubeUVRenderTarget.texture.encoding ];
 
 		_setViewport( cubeUVRenderTarget, 0, 0, 3 * SIZE_MAX, 2 * SIZE_MAX );
 
@@ -504,6 +502,14 @@ PMREMGenerator.prototype = {
 	}
 
 };
+
+function _isLDR( texture ) {
+
+	if ( texture === undefined || texture.type !== UnsignedByteType ) return false;
+
+	return texture.encoding === LinearEncoding || texture.encoding === sRGBEncoding || texture.encoding === GammaEncoding;
+
+}
 
 function _createPlanes() {
 
@@ -786,26 +792,30 @@ attribute vec3 position;
 attribute vec2 uv;
 attribute float faceIndex;
 varying vec3 vOutputDirection;
+
+// RH coordinate system; PMREM face-indexing convention
 vec3 getDirection(vec2 uv, float face) {
 	uv = 2.0 * uv - 1.0;
 	vec3 direction = vec3(uv, 1.0);
 	if (face == 0.0) {
-		direction = direction.zyx;
-		direction.z *= -1.0;
+		direction = direction.zyx; // ( 1, v, u ) pos x
 	} else if (face == 1.0) {
 		direction = direction.xzy;
-		direction.z *= -1.0;
+		direction.xz *= -1.0; // ( -u, 1, -v ) pos y
+	} else if (face == 2.0) {
+		direction.x *= -1.0; // ( -u, v, 1 ) pos z
 	} else if (face == 3.0) {
 		direction = direction.zyx;
-		direction.x *= -1.0;
+		direction.xz *= -1.0; // ( -1, v, -u ) neg x
 	} else if (face == 4.0) {
 		direction = direction.xzy;
-		direction.y *= -1.0;
+		direction.xy *= -1.0; // ( -u, -1, v ) neg y
 	} else if (face == 5.0) {
-		direction.xz *= -1.0;
+		direction.z *= -1.0; // ( u, v, -1 ) neg z
 	}
 	return direction;
 }
+
 void main() {
 	vOutputDirection = getDirection(uv, faceIndex);
 	gl_Position = vec4( position, 1.0 );
